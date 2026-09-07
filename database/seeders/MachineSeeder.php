@@ -7,37 +7,17 @@ use Illuminate\Database\Seeder;
 
 class MachineSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     * Inserts our 4 physical commercial laundry machines.
-     */
     public function run(): void
     {
         $machines = [
-            [
-                'name' => 'Commercial Washer 1 (Heavy 15kg)',
-                'is_available' => true,
-                'is_active' => true,
-            ],
-            [
-                'name' => 'Commercial Washer 2 (Standard 10kg)',
-                'is_available' => true,
-                'is_active' => true,
-            ],
-            [
-                'name' => 'Dry Cleaning Solvent Unit (Delicates)',
-                'is_available' => true,
-                'is_active' => true,
-            ],
-            [
-                'name' => 'Commercial Tumble Dryer A',
-                'is_available' => true,
-                'is_active' => true,
-            ],
+            ['name' => 'Washer 1 (15kg Heavy Duty)', 'is_available' => true, 'is_active' => true],
+            ['name' => 'Washer 2 (10kg Commercial)', 'is_available' => true, 'is_active' => true],
+            ['name' => 'Dry Cleaner Unit A', 'is_available' => true, 'is_active' => true],
+            ['name' => 'Industrial Dryer 1', 'is_available' => true, 'is_active' => true],
         ];
 
-        foreach ($machines as $machineData) {
-            Machine::create($machineData);
+        foreach ($machines as $machine) {
+            Machine::firstOrCreate(['name' => $machine['name']], $machine);
         }
     }
 }

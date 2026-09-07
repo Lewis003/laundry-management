@@ -4,93 +4,109 @@ namespace Database\Seeders;
 
 use App\Models\Service;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class ServiceSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     * Inserts our 11 official laundry menu services with Kenyan prices in cents.
-     */
     public function run(): void
     {
         $services = [
-            // 1. Everyday Wear
             [
-                'name' => 'Shirt (Wash & Steam Iron)',
-                'price_in_cents' => 10000, // KSh 100.00
-                'duration_minutes' => 30,
-                'description' => 'Gentle machine wash with crisp collar and cuff steam press.',
-            ],
-            [
-                'name' => 'Trousers / Jeans (Wash & Press)',
-                'price_in_cents' => 12000, // KSh 120.00
-                'duration_minutes' => 30,
-                'description' => 'Fabric-safe washing with sharp crease pressing.',
-            ],
-            [
-                'name' => 'T-Shirt / Polo (Wash & Fold)',
-                'price_in_cents' => 8000, // KSh 80.00
-                'duration_minutes' => 20,
-                'description' => 'Standard everyday wash, tumble dry, and neat fold.',
-            ],
-            [
-                'name' => 'Dress / Skirt (Delicate Wash & Iron)',
-                'price_in_cents' => 20000, // KSh 200.00
+                'name'             => 'Casual Everyday Wash & Fold (Minimum Batch Load)',
+                'price_in_cents'   => 35000, // KSh 350.00 (Minimum base price)
                 'duration_minutes' => 45,
-                'description' => 'Delicate cycle wash with professional steam finishing.',
-            ],
-
-            // 2. Executive & Formal Dry-Cleaning
-            [
-                'name' => '2-Piece Suit (Dry Clean & Steam Press)',
-                'price_in_cents' => 35000, // KSh 350.00
-                'duration_minutes' => 60,
-                'description' => 'Eco-solvent dry cleaning with structured shoulder pressing.',
+                'description'      => 'Everyday casual wear washed, tumble dried, and folded. Minimum batch threshold.',
             ],
             [
-                'name' => '3-Piece Suit (Dry Clean & Steam Press)',
-                'price_in_cents' => 45000, // KSh 450.00
-                'duration_minutes' => 60,
-                'description' => 'Full 3-piece dry clean (Jacket, Trousers, Waistcoat).',
+                'name'             => 'Office Wear Bundle (3 Shirts/Trousers Wash & Press)',
+                'price_in_cents'   => 35000, // KSh 350.00
+                'duration_minutes' => 45,
+                'description'      => 'Pack of 3 workwear garments washed, dried, and crisp steam ironed.',
             ],
             [
-                'name' => 'Blazer / Coat (Dry Clean & Press)',
-                'price_in_cents' => 30000, // KSh 300.00
+                'name'             => 'Sneakers & Canvas Footwear Care (Deep Scrub & Deodorize)',
+                'price_in_cents'   => 35000, // KSh 350.00
                 'duration_minutes' => 40,
-                'description' => 'Deep solvent clean for wool, tweed, or polyester coats.',
-            ],
-
-            // 3. Heavy Bedding & Linens
-            [
-                'name' => 'Heavy Duvet / Comforter (Machine Wash)',
-                'price_in_cents' => 80000, // KSh 800.00
-                'duration_minutes' => 90,
-                'description' => '15kg heavy commercial machine wash with thermal sanitization.',
+                'description'      => 'Hand scrub stain removal, upper washing, sole whitening, and deodorization.',
             ],
             [
-                'name' => 'Heavy Blanket (Machine Wash & Dry)',
-                'price_in_cents' => 60000, // KSh 600.00
-                'duration_minutes' => 75,
-                'description' => 'Deep wash and anti-shrink tumble dry for heavy blankets.',
+                'name'             => 'Curtains & Heavy Drapery Cleaning (Per Set / Pair)',
+                'price_in_cents'   => 45000, // KSh 450.00
+                'duration_minutes' => 50,
+                'description'      => 'Dust extraction, deep fabric wash, and hanging steam press.',
             ],
             [
-                'name' => 'Bedsheets & Pillowcases (Wash & Iron)',
-                'price_in_cents' => 25000, // KSh 250.00
-                'duration_minutes' => 30,
-                'description' => 'Complete bed linen wash with flatwork ironing.',
-            ],
-
-            // 4. Bulk Hamper Wash
-            [
-                'name' => 'Everyday Clothes Hamper (Wash & Fold up to 5kg)',
-                'price_in_cents' => 50000, // KSh 500.00
+                'name'             => 'Industrial Boiler Suits & Work Overalls (Heavy Grease Wash)',
+                'price_in_cents'   => 45000, // KSh 450.00
                 'duration_minutes' => 60,
-                'description' => 'Bulk everyday family clothes wash, tumble dry, and pack.',
+                'description'      => 'Commercial grease extraction, heavy-duty detergent sanitization, and drying.',
+            ],
+            [
+                'name'             => 'Hospitality & Commercial Linen (5kg Batch Wash & Iron)',
+                'price_in_cents'   => 50000, // KSh 500.00
+                'duration_minutes' => 50,
+                'description'      => 'Hotel and Airbnb bedsheets, duvet covers, and bath towels weighed and pressed.',
+            ],
+            [
+                'name'             => 'Executive Suit 2-Piece (Dry Clean & Steam Press)',
+                'price_in_cents'   => 65000, // KSh 650.00
+                'duration_minutes' => 60,
+                'description'      => 'Complete coat and trousers chemical dry cleaning with form finishing on hanger.',
+            ],
+            [
+                'name'             => 'Heavy Duvet / Comforter (King/Queen Size Sanitized)',
+                'price_in_cents'   => 85000, // KSh 850.00
+                'duration_minutes' => 75,
+                'description'      => 'Large drum wash, anti-dustmite antibacterial treatment, and fluff dry.',
+            ],
+            [
+                'name'             => 'Premium 3-Piece Executive Suit (Dry Clean & Form Press)',
+                'price_in_cents'   => 95000, // KSh 950.00
+                'duration_minutes' => 70,
+                'description'      => 'Coat, waistcoat, and trousers dry cleaned with luxury fabric finishing.',
+            ],
+            [
+                'name'             => 'Delicate Evening Dress / Silk Gown (Special Solvent Care)',
+                'price_in_cents'   => 120000, // KSh 1,200.00
+                'duration_minutes' => 80,
+                'description'      => 'Specialized solvent care for silk, chiffon, lace, and beaded designer wear.',
+            ],
+            [
+                'name'             => 'Heavy Winter Trench Coat / Leather Jacket Care',
+                'price_in_cents'   => 150000, // KSh 1,500.00
+                'duration_minutes' => 90,
+                'description'      => 'Deep conditioning, leather/suede treatment, and heavy stain removal.',
             ],
         ];
 
+        Schema::disableForeignKeyConstraints();
+        DB::table('services')->truncate();
+        Schema::enableForeignKeyConstraints();
+
         foreach ($services as $serviceData) {
-            Service::create($serviceData);
+            $payload = [
+                'name'             => $serviceData['name'],
+                'price_in_cents'   => $serviceData['price_in_cents'],
+                'duration_minutes' => $serviceData['duration_minutes'],
+                'description'      => $serviceData['description'],
+            ];
+
+            if (Schema::hasColumn('services', 'price')) {
+                $payload['price'] = $serviceData['price_in_cents'] / 100;
+            }
+            if (Schema::hasColumn('services', 'price_cents')) {
+                $payload['price_cents'] = $serviceData['price_in_cents'];
+            }
+            if (Schema::hasColumn('services', 'slug')) {
+                $payload['slug'] = Str::slug($serviceData['name']);
+            }
+            if (Schema::hasColumn('services', 'is_active')) {
+                $payload['is_active'] = true;
+            }
+
+            Service::create($payload);
         }
     }
 }

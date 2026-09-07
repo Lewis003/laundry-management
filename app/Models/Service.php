@@ -4,39 +4,37 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Service extends Model
 {
     use HasFactory;
 
-    // Mass-assignable columns
-    protected $fillable = [
-        'name',
-        'price_in_cents',
-        'duration_minutes',
-        'description',
-    ];
+    protected $guarded = [];
 
-
-    protected $casts = [
-        'price_in_cents' => 'integer',
-        'duration_minutes' => 'integer',
-    ];
-
-    /**
-     * Relationship: Service package is used across MANY order line items (1:N)
-     */
     public function items(): HasMany
     {
         return $this->hasMany(JobItem::class);
     }
 
     /**
-     * Helper Accessor: Format price in Kenyan Shillings
+     * Dynamically resolve price in Shillings.
      */
-    public function getFormattedPriceAttribute(): string
+    public function getPriceAttribute(): float
     {
-        return 'KSh ' . number_format($this->price_in_cents / 100, 2);
+        if (isset($this->attributes['price_in_cents'])) {
+            return round((float) $this->attributes['price_in_cents'] / 100, 2);
+        }
+
+        if (isset($this->attributes['price_cents'])) {
+            return round((float) $this->attributes['price_cents'] / 100, 2);
+        }
+
+        if (isset($this->attributes['price'])) {
+            return (float) $this->attributes['price'];
+        }
+
+        return 0.0;
     }
 }

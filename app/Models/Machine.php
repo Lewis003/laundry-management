@@ -12,41 +12,74 @@ class Machine extends Model
 {
     use HasFactory;
 
-    // Which columns are mass-assignable
     protected $fillable = [
         'name',
         'is_available',
         'is_active',
+        'status',
     ];
 
-    //  boolean columns are treated as true/false
     protected $casts = [
         'is_available' => 'boolean',
-        'is_active' => 'boolean', // maintainance mode: if false, machine is offline and cannot be used for new jobs
+        'is_active' => 'boolean',
     ];
 
-    /**
-     * Relationship: 1 Machine has MANY historical laundry jobs (1:N)
-     */
     public function jobs(): HasMany
     {
         return $this->hasMany(Job::class);
     }
 
     /**
-     * Relationship: has 1 active job currently spinning in this machine
+     * Active job currently occupying this machine (washing or queued in bay).
      */
     public function currentJob(): HasOne
     {
         return $this->hasOne(Job::class)
-            ->where('status', JobStatus::IN_PROGRESS);
+            ->whereIn('status', [
+                JobStatus::IN_PROGRESS,
+                JobStatus::IN_PROGRESS->value,
+                JobStatus::RECEIVED,
+                JobStatus::RECEIVED->value
+            ]);
     }
 
     /**
-     * Check if machine is free and online
+     * Is the machine active and free for a new load.
      */
     public function isAvailable(): bool
     {
-        return $this->is_available && $this->is_active;
+        return $this->is_active && $this->is_available && $this->currentJob()->doesntExist();
+    }
+
+    /**
+     * Dynamic status accessor matching workflow expectations ('available', 'in_use', 'maintenance').
+     */
+    public function getStatusAttribute(): string
+    {
+        if (!$this->is_active) {
+            return 'maintenance';
+        }
+
+        // If marked unavailable OR has an active running job, it is strictly IN USE
+        if (!$this->is_available || $this->currentJob()->exists()) {
+            return 'in_use';
+        }
+
+        return 'available';
+    }
+
+    /**
+     * Set status attribute cleanly mapping to is_available and is_active booleans.
+     */
+    public function setStatusAttribute(?string $value): void
+    {
+        if ($value === 'available') {
+            $this->attributes['is_available'] = true;
+            $this->attributes['is_active'] = true;
+        } elseif ($value === 'in_use') {
+            $this->attributes['is_available'] = false;
+        } elseif ($value === 'maintenance') {
+            $this->attributes['is_active'] = false;
+        }
     }
 }

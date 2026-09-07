@@ -10,31 +10,47 @@ class Payment extends Model
 {
     use HasFactory;
 
-    // Mass-assignable columns
-    protected $fillable = [
-        'job_id',
-        'amount_in_cents',
-        'payment_method',
-        'transaction_reference',
-        'notes',
-    ];
+    protected $guarded = [];
 
-    // Ensure amount is strictly an integer in cents
-    protected $casts = [
-        'amount_in_cents' => 'integer',
-    ];
-
-    /**
-     * Relationship: Each Payment transaction belongs to 1 specific Job order (N:1)
-     */
     public function job(): BelongsTo
     {
         return $this->belongsTo(Job::class);
     }
 
-
-    public function getFormattedAmountAttribute(): string
+    public function receiver(): BelongsTo
     {
-        return 'KSh ' . number_format($this->amount_in_cents / 100, 2);
+        return $this->belongsTo(User::class, 'received_by');
+    }
+
+    /**
+     * Resolves payment reference string safely.
+     */
+    public function getReferenceAttribute(): string
+    {
+        return $this->attributes['payment_reference']
+            ?? $this->attributes['reference']
+            ?? $this->attributes['transaction_reference']
+            ?? ('PAY-' . str_pad((string) ($this->id ?? 1), 5, '0', STR_PAD_LEFT));
+    }
+
+    /**
+     * Resolves payment amount in Kenyan Shillings.
+     */
+    public function getAmountAttribute(): float
+    {
+        if (isset($this->attributes['amount_in_cents'])) {
+            return round((float) $this->attributes['amount_in_cents'] / 100, 2);
+        }
+        if (isset($this->attributes['amount_cents'])) {
+            return round((float) $this->attributes['amount_cents'] / 100, 2);
+        }
+
+        $val = (float) ($this->attributes['amount'] ?? 0);
+
+        if ($val >= 10000) {
+            return round($val / 100, 2);
+        }
+
+        return round($val, 2);
     }
 }

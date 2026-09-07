@@ -20,6 +20,7 @@ return new class extends Migration
             $table->foreignId('machine_id')->nullable()->constrained('machines')->nullOnDelete(); // Assigned washer/dryer (null when queued or on shelf)
             $table->string('status')->default('received'); // Enum: received, in_progress, ready, picked_up, cancelled
             $table->foreignId('assigned_worker_id')->nullable()->constrained('users')->nullOnDelete(); // Staff operator
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->string('rack_location')->nullable(); // Numbered storage shelf (e.g. "Rack B-14")
             $table->text('notes')->nullable(); // Garment defect remarks (e.g. "Missing button on collar")
             $table->timestamps(); // Created_at and updated_at audit trail

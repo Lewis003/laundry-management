@@ -2,55 +2,44 @@
 
 namespace App\Enums;
 
-/**
- * Prevents invalid state jumps (e.g. jumping from received directly to picked_up).
- */
 enum JobStatus: string
 {
-    case RECEIVED = 'received';
+    case RECEIVED    = 'received';
     case IN_PROGRESS = 'in_progress';
-    case READY = 'ready';
-    case PICKED_UP = 'picked_up';
-    case CANCELLED = 'cancelled';
+    case READY       = 'ready';
+    case COLLECTED   = 'collected';
+    case PICKED_UP   = 'picked_up';
+    case COMPLETED   = 'completed';
+    case CANCELLED   = 'cancelled';
 
     /**
-     * Defines which target status is legally reachable from the current status.
-     */
-    public function canTransitionTo(JobStatus $target): bool
-    {
-        return match ($this) {
-            self::RECEIVED => in_array($target, [self::IN_PROGRESS, self::CANCELLED]),
-            self::IN_PROGRESS => in_array($target, [self::READY, self::CANCELLED]),
-            self::READY => in_array($target, [self::PICKED_UP]),
-            self::PICKED_UP, self::CANCELLED => false, // Terminal states: cannot transition further
-        };
-    }
-
-    /**
-     * UI Label.
+     * Human-readable label for UI badges.
      */
     public function label(): string
     {
         return match ($this) {
-            self::RECEIVED => 'Received (Tagged)',
+            self::RECEIVED    => 'Received',
             self::IN_PROGRESS => 'In Progress (Washing)',
-            self::READY => 'Ready (On Shelf Rack)',
-            self::PICKED_UP => 'Picked Up (Collected)',
-            self::CANCELLED => 'Cancelled',
+            self::READY       => 'Ready for Pickup',
+            self::COLLECTED   => 'Collected',
+            self::PICKED_UP   => 'Picked Up',
+            self::COMPLETED   => 'Completed',
+            self::CANCELLED   => 'Cancelled',
         };
     }
 
     /**
-     * Tailwind CSS Badge Colors for UI.
+     * Tailwind badge color classes.
      */
     public function badgeClasses(): string
     {
         return match ($this) {
-            self::RECEIVED => 'bg-amber-100 text-amber-800 border-amber-300',
-            self::IN_PROGRESS => 'bg-blue-100 text-blue-800 border-blue-300 animate-pulse',
-            self::READY => 'bg-emerald-100 text-emerald-800 border-emerald-300',
-            self::PICKED_UP => 'bg-gray-100 text-gray-800 border-gray-300',
-            self::CANCELLED => 'bg-red-100 text-red-800 border-red-300',
+            self::RECEIVED                      => 'bg-blue-50 text-blue-700 border-blue-200',
+            self::IN_PROGRESS                   => 'bg-amber-50 text-amber-700 border-amber-200',
+            self::READY                         => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+            self::COLLECTED, self::PICKED_UP,
+            self::COMPLETED                     => 'bg-slate-100 text-slate-700 border-slate-200',
+            self::CANCELLED                     => 'bg-rose-50 text-rose-700 border-rose-200',
         };
     }
 }

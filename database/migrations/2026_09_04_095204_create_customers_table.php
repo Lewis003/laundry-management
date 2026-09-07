@@ -8,15 +8,14 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
-     *  customers (id, name, phone, timestamps)
      */
     public function up(): void
     {
         Schema::create('customers', function (Blueprint $table) {
-            $table->id(); // Primary Key
-            $table->string('name'); // Customer's full name
-            $table->string('phone')->index(); // Indexed for fast search at counter & order tracking
-            $table->timestamps(); // Created_at and updated_at audit trail
+            $table->id();
+            $table->string('name');
+            $table->string('phone')->unique();
+            $table->timestamps();
         });
     }
 
