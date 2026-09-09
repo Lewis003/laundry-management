@@ -2,153 +2,163 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Job;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\View\View;
 
 class StaffController extends Controller
 {
-    /**
-     * Display staff operations and activity tracker.
-     */
-    public function index(Request $request)
+    public function index(Request $request): View
     {
-        $currentUser = Auth::user();
+        abort_unless(auth()->user()->canManageStaff(), 403, 'Unauthorized. Staff management is restricted to Administrators and Managers.');
 
-        if ($currentUser && ($currentUser->role === 'operator' || (method_exists($currentUser, 'isOperator') && $currentUser->isOperator()))) {
-            abort(403, 'Wash bay operators are not authorized to view staff analytics.');
+        $roles = Role::withCount('users')->orderBy('id', 'asc')->get();
+        if ($roles->isEmpty()) {
+            $defaultRoles = [
+                ['name' => 'admin', 'display_name' => 'Admin / Owner', 'access_level' => 'Full Access', 'primary_actions' => ['user:manage', 'invoice:void', 'refund:issue', 'audit-log:view'], 'is_system' => true],
+                ['name' => 'manager', 'display_name' => 'Store Manager', 'access_level' => 'Operational Authority', 'primary_actions' => ['price:override', 'rewash:approve', 'route:assign', 'report:export'], 'is_system' => true],
+                ['name' => 'cashier', 'display_name' => 'Front Desk Cashier', 'access_level' => 'Customer Facing', 'primary_actions' => ['order:create', 'order:edit', 'payment:collect', 'tag:generate'], 'is_system' => true],
+                ['name' => 'operator', 'display_name' => 'Laundry Operator', 'access_level' => 'Back-end Processing', 'primary_actions' => ['status:update', 'weight:log', 'machine:allocate'], 'is_system' => true],
+                ['name' => 'rider', 'display_name' => 'Delivery Rider', 'access_level' => 'Logistics Only', 'primary_actions' => ['delivery:confirm', 'bag:audit'], 'is_system' => true],
+            ];
+            foreach ($defaultRoles as $r) {
+                Role::create($r);
+            }
+            $roles = Role::withCount('users')->orderBy('id', 'asc')->get();
         }
 
-        $completedStatuses = [
-            'ready',
-            'collected',
-            'picked_up',
-            'completed',
-        ];
+        $staff = User::with('roleDefinition')->orderBy('name', 'asc')->get();
+        $users = $staff;
 
-        $hasUserRelation = Schema::hasTable('jobs') && (
-            Schema::hasColumn('jobs', 'user_id') ||
-            Schema::hasColumn('jobs', 'operator_id') ||
-            Schema::hasColumn('jobs', 'assigned_to')
-        );
-
-        if ($hasUserRelation) {
-            $staffMembers = User::withCount([
-                'assignedJobs as active_jobs_count' => function ($query) {
-                    $query->where('status', 'in_progress');
-                },
-                'assignedJobs as completed_jobs_count' => function ($query) use ($completedStatuses) {
-                    $query->whereIn('status', $completedStatuses);
-                },
-            ])->orderBy('name')->get();
-        } else {
-            $staffMembers = User::orderBy('name')->get()->map(function ($user) {
-                $user->active_jobs_count = 0;
-                $user->completed_jobs_count = 0;
-                return $user;
-            });
+        if ($request->routeIs('settings.staff')) {
+            return view('settings.staff', compact('staff', 'users', 'roles'));
         }
 
-        $users = $staffMembers;
-
-        $overview = [
-            'received'         => Job::where('status', 'received')->count(),
-            'in_progress'      => Job::where('status', 'in_progress')->count(),
-            'ready'            => Job::where('status', 'ready')->count(),
-            'completed'        => Job::whereIn('status', $completedStatuses)->count(),
-            'received_today'   => Job::whereDate('created_at', today())->where('status', 'received')->count(),
-            'washing_now'      => Job::where('status', 'in_progress')->count(),
-            'ready_for_pickup' => Job::where('status', 'ready')->count(),
-            'completed_today'  => Job::whereDate('updated_at', today())->whereIn('status', $completedStatuses)->count(),
-        ];
-        $todayOverview = $overview;
-
-        return view('staff.index', compact('staffMembers', 'users', 'overview', 'todayOverview'));
+        return view('staff.index', compact('staff', 'users', 'roles'));
     }
 
-    /**
-     * Show the form to create a new staff member.
-     */
-    public function create()
+    public function permissions(): View
     {
-        $currentUser = Auth::user();
+        abort_unless(auth()->user()->canManageStaff(), 403, 'Unauthorized. Staff permissions management is restricted to Administrators and Managers.');
 
-        if ($currentUser && method_exists($currentUser, 'isAdmin') && !$currentUser->isAdmin()) {
-            abort(403, 'Only administrators can access staff registration.');
-        }
+        $roles = Role::withCount('users')->orderBy('id', 'asc')->get();
+        $staff = User::with('roleDefinition')->orderBy('name', 'asc')->get();
+        $users = $staff;
 
-        return view('staff.create');
+        return view('settings.permissions', compact('staff', 'users', 'roles'));
     }
 
-    /**
-     * Store a new staff member (Admin only).
-     */
     public function store(Request $request)
     {
-        $currentUser = Auth::user();
+        abort_unless(auth()->user()->canManageStaff(), 403, 'Unauthorized. Staff management is restricted to Administrators and Managers.');
 
-        if ($currentUser && method_exists($currentUser, 'isAdmin') && !$currentUser->isAdmin()) {
-            abort(403, 'Only administrators can create staff accounts.');
+        $validRoles = Role::pluck('name')->toArray();
+        if (empty($validRoles)) {
+            $validRoles = ['admin', 'manager', 'cashier', 'operator', 'rider'];
         }
 
         $validated = $request->validate([
-            'name'     => ['required', 'string', 'max:255'],
-            'email'    => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:6'],
-            'role'     => ['required', 'string', 'in:admin,cashier,operator'],
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:6',
+            'role'     => ['required', 'string', 'in:' . implode(',', $validRoles)],
         ]);
 
-        $payload = [
-            'name'     => $validated['name'],
-            'email'    => $validated['email'],
-            'password' => Hash::make($validated['password']),
+        $isAdmin = ($validated['role'] === 'admin');
+
+        $defaultPermissions = [
+            'view_revenue'    => in_array($validated['role'], ['admin', 'manager']),
+            'manage_expenses' => in_array($validated['role'], ['admin', 'manager']),
+            'manage_machines' => in_array($validated['role'], ['admin', 'manager', 'operator']),
+            'delete_orders'   => in_array($validated['role'], ['admin']),
         ];
 
-        if (Schema::hasColumn('users', 'role')) {
-            $payload['role'] = $validated['role'];
-        }
-
-        $staff = User::create($payload);
-
-        return redirect()->route('staff.index')->with('success', "Staff member '{$staff->name}' ({$staff->role}) registered successfully.");
-    }
-
-    /**
-     * Update a staff member's role (Admin only).
-     */
-    public function updateRole(Request $request, User $user)
-    {
-        $currentUser = Auth::user();
-
-        if ($currentUser && method_exists($currentUser, 'isAdmin') && !$currentUser->isAdmin()) {
-            abort(403, 'Only administrators can modify staff roles.');
-        }
-
-        $validated = $request->validate([
-            'role' => ['required', 'string', 'in:admin,cashier,operator'],
+        User::create([
+            'name'        => $validated['name'],
+            'email'       => $validated['email'],
+            'password'    => Hash::make($validated['password']),
+            'role'        => $validated['role'],
+            'is_admin'    => $isAdmin,
+            'permissions' => $defaultPermissions,
         ]);
 
-        if (Schema::hasColumn('users', 'role')) {
-            $user->update(['role' => $validated['role']]);
-        }
-
-        return back()->with('success', "Updated role for '{$user->name}' to " . ucfirst($validated['role']) . ".");
+        return redirect()->route('staff.index')->with('success', "Staff member {$validated['name']} registered successfully.");
     }
 
-    /**
-     * Delete or deactivate a staff member.
-     */
-    public function destroy(User $user)
+    public function toggleAdmin(User $user)
     {
-        if (Auth::id() === $user->id) {
-            return back()->withErrors(['error' => 'You cannot delete your own account.']);
+        abort_unless(auth()->user()->isAdmin(), 403, 'Only Administrators can alter administrative privileges.');
+
+        if ($user->id === auth()->id() && $user->is_admin) {
+            return back()->with('error', 'You cannot remove your own admin status.');
         }
 
+        $user->is_admin = !$user->is_admin;
+        if ($user->is_admin) {
+            $user->role = 'admin';
+        }
+        $user->save();
+
+        $status = $user->is_admin ? 'granted Admin status' : 'revoked Admin status';
+        return back()->with('success', "User {$user->name} has been {$status}.");
+    }
+
+    public function updateRole(Request $request, User $user)
+    {
+        abort_unless(auth()->user()->isAdmin(), 403, 'Only Administrators can assign staff roles.');
+
+        $validRoles = Role::pluck('name')->toArray();
+        if (empty($validRoles)) {
+            $validRoles = ['admin', 'manager', 'cashier', 'operator', 'rider'];
+        }
+
+        $role = $request->input('role');
+        if (!in_array($role, $validRoles)) {
+            return back()->with('error', 'Invalid role selected.');
+        }
+
+        $user->role = $role;
+        $user->is_admin = ($role === 'admin');
+        $user->save();
+
+        return back()->with('success', "Updated {$user->name}'s role to " . ucfirst($role) . '.');
+    }
+
+    public function togglePermission(Request $request, User $user)
+    {
+        abort_unless(auth()->user()->isAdmin(), 403, 'Only Administrators can toggle granular permissions.');
+
+        $permission = $request->input('permission');
+        $allowed = ['view_revenue', 'manage_expenses', 'manage_machines', 'delete_orders'];
+
+        if (!in_array($permission, $allowed)) {
+            return back()->with('error', 'Invalid permission type.');
+        }
+
+        $perms = $user->permissions ?? [];
+        $currentState = !empty($perms[$permission]);
+        $perms[$permission] = !$currentState;
+
+        $user->permissions = $perms;
+        $user->save();
+
+        $stateText = $perms[$permission] ? 'ENABLED' : 'DISABLED';
+        return back()->with('success', "Permission [{$permission}] {$stateText} for {$user->name}.");
+    }
+
+    public function destroy(User $user)
+    {
+        abort_unless(auth()->user()->isAdmin(), 403, 'Only Administrators can delete staff accounts.');
+
+        if ($user->id === auth()->id()) {
+            return back()->with('error', 'You cannot delete your own account.');
+        }
+
+        $name = $user->name;
         $user->delete();
 
-        return back()->with('success', "Staff account removed successfully.");
+        return redirect()->route('staff.index')->with('success', "Staff member {$name} removed.");
     }
 }

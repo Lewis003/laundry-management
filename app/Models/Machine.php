@@ -3,6 +3,9 @@
 namespace App\Models;
 
 use App\Enums\JobStatus;
+use App\Enums\MachineStatus;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -14,72 +17,70 @@ class Machine extends Model
 
     protected $fillable = [
         'name',
+        'type',
+        'capacity_kg',
+        'status',
         'is_available',
         'is_active',
-        'status',
+        'last_maintenance_date',
+        'next_maintenance_date',
+        'notes',
     ];
 
     protected $casts = [
-        'is_available' => 'boolean',
-        'is_active' => 'boolean',
+        'status'                => MachineStatus::class,
+        'capacity_kg'           => 'float',
+        'is_available'          => 'boolean',
+        'is_active'             => 'boolean',
+        'last_maintenance_date' => 'date',
+        'next_maintenance_date' => 'date',
     ];
+
+    // ==================== RELATIONSHIPS ====================
 
     public function jobs(): HasMany
     {
         return $this->hasMany(Job::class);
     }
 
-    /**
-     * Active job currently occupying this machine (washing or queued in bay).
-     */
     public function currentJob(): HasOne
     {
         return $this->hasOne(Job::class)
-            ->whereIn('status', [
-                JobStatus::IN_PROGRESS,
-                JobStatus::IN_PROGRESS->value,
-                JobStatus::RECEIVED,
-                JobStatus::RECEIVED->value
-            ]);
+            ->where('status', JobStatus::IN_PROGRESS)
+            ->latestOfMany();
     }
 
-    /**
-     * Is the machine active and free for a new load.
-     */
-    public function isAvailable(): bool
+    // ==================== SCOPES ====================
+
+    public function scopeAvailable(Builder $query): Builder
     {
-        return $this->is_active && $this->is_available && $this->currentJob()->doesntExist();
+        return $query->where(function ($q) {
+            $q->where('status', MachineStatus::AVAILABLE->value)
+              ->orWhere('is_available', true);
+        })->where('is_active', true);
     }
 
-    /**
-     * Dynamic status accessor matching workflow expectations ('available', 'in_use', 'maintenance').
-     */
-    public function getStatusAttribute(): string
+    public function scopeActive(Builder $query): Builder
     {
-        if (!$this->is_active) {
-            return 'maintenance';
-        }
-
-        // If marked unavailable OR has an active running job, it is strictly IN USE
-        if (!$this->is_available || $this->currentJob()->exists()) {
-            return 'in_use';
-        }
-
-        return 'available';
+        return $query->where('is_active', true);
     }
 
-    /**
-     * Set status attribute cleanly mapping to is_available and is_active booleans.
-     */
-    public function setStatusAttribute(?string $value): void
+    // ==================== DERIVED ACCESSORS & HELPERS ====================
+
+    public function getFormattedCapacityAttribute(): string
     {
-        if ($value === 'available') {
-            $this->attributes['is_available'] = true;
-            $this->attributes['is_active'] = true;
-        } elseif ($value === 'in_use') {
-            $this->attributes['is_available'] = false;
-        } elseif ($value === 'maintenance') {
-            $this->attributes['is_active'] = false;
-        }
+        return number_format($this->capacity_kg ?? 15, 1) . ' kg';
+    }
+
+    public function isMaintenanceOverdue(): bool
+    {
+        return $this->next_maintenance_date && $this->next_maintenance_date->isPast();
+    }
+
+    public function isMaintenanceDueSoon(): bool
+    {
+        return $this->next_maintenance_date &&
+               $this->next_maintenance_date->isFuture() &&
+               $this->next_maintenance_date->diffInDays(Carbon::now()) <= 7;
     }
 }

@@ -2,135 +2,80 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\JobItem;
 use App\Models\Service;
+use App\Services\ServiceService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
+use Illuminate\View\View;
 
 class ServiceController extends Controller
 {
-    /**
-     * Display a listing of laundry services in the catalog.
-     */
-    public function index()
-    {
-        $services = Service::withCount('items')
-            ->orderBy('name')
-            ->get();
+    public function __construct(
+        protected ServiceService $serviceService
+    ) {}
 
-        return view('services.index', compact('services'));
+    public function index(Request $request): View
+    {
+        $filters = $request->only(['search', 'category', 'status']);
+        $services = $this->serviceService->getFilteredServices($filters, 10);
+
+        return view('services.index', compact('services', 'filters'));
     }
 
-    /**
-     * Store a newly created service in the catalog.
-     */
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
-        $user = Auth::user();
-        if (!$user || !$user->isAdmin()) {
-            abort(403, 'Only administrators can add services to the catalog.');
-        }
+        abort_unless(auth()->user()->canManageServices(), 403, 'Only Managers and Admins can create or modify services.');
 
         $validated = $request->validate([
             'name'             => ['required', 'string', 'max:255'],
-            'price'            => ['required', 'numeric', 'min:350'],
-            'duration_minutes' => ['nullable', 'integer', 'min:5', 'max:1440'],
+            'price'            => ['required', 'numeric', 'min:1'], // Entered in KSh, service converts to cents
+            'category'         => ['nullable', 'string'],
+            'duration_minutes' => ['nullable', 'integer', 'min:1'],
             'description'      => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $priceInCents = (int) round(((float) $validated['price']) * 100);
+        $validated['category'] = $validated['category'] ?? 'wash_fold';
+        $validated['duration_minutes'] = $validated['duration_minutes'] ?? 60;
 
-        $payload = [
-            'name'             => trim($validated['name']),
-            'price_in_cents'   => $priceInCents,
-            'duration_minutes' => (int) ($validated['duration_minutes'] ?? 45),
-            'description'      => !empty($validated['description']) ? trim($validated['description']) : null,
-        ];
+        $service = $this->serviceService->createService($validated);
 
-        if (Schema::hasColumn('services', 'price')) {
-            $payload['price'] = (float) $validated['price'];
-        }
-        if (Schema::hasColumn('services', 'price_cents')) {
-            $payload['price_cents'] = $priceInCents;
-        }
-        if (Schema::hasColumn('services', 'slug')) {
-            $payload['slug'] = Str::slug($validated['name']);
-        }
-        if (Schema::hasColumn('services', 'is_active')) {
-            $payload['is_active'] = true;
-        }
-
-        Service::create($payload);
-
-        return redirect()->route('services.index')->with('success', "Service \"{$validated['name']}\" added successfully at KSh " . number_format($validated['price'], 2) . " (VAT Inclusive).");
+        return redirect()
+            ->route('services.index')
+            ->with('success', "Service '{$service->name}' added to catalog.");
     }
 
-    /**
-     * Update the specified service in the catalog.
-     */
-    public function update(Request $request, Service $service)
+    public function update(Request $request, Service $service): RedirectResponse
     {
-        $user = Auth::user();
-        if (!$user || !$user->isAdmin()) {
-            abort(403, 'Only administrators can modify catalog services.');
-        }
+        abort_unless(auth()->user()->canManageServices(), 403, 'Only Managers and Admins can create or modify services.');
 
         $validated = $request->validate([
             'name'             => ['required', 'string', 'max:255'],
-            'price'            => ['required', 'numeric', 'min:350'],
-            'duration_minutes' => ['nullable', 'integer', 'min:5', 'max:1440'],
+            'price'            => ['required', 'numeric', 'min:1'],
+            'category'         => ['nullable', 'string'],
+            'duration_minutes' => ['nullable', 'integer', 'min:1'],
+            'is_active'        => ['nullable', 'boolean'],
             'description'      => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $priceInCents = (int) round(((float) $validated['price']) * 100);
+        $validated['category'] = $validated['category'] ?? $service->category ?? 'wash_fold';
+        $validated['is_active'] = $request->has('is_active') ? $request->boolean('is_active') : ($service->is_active ?? true);
 
-        $payload = [
-            'name'             => trim($validated['name']),
-            'price_in_cents'   => $priceInCents,
-            'duration_minutes' => (int) ($validated['duration_minutes'] ?? $service->duration_minutes ?? 45),
-            'description'      => !empty($validated['description']) ? trim($validated['description']) : null,
-        ];
+        $this->serviceService->updateService($service, $validated);
 
-        if (Schema::hasColumn('services', 'price')) {
-            $payload['price'] = (float) $validated['price'];
-        }
-        if (Schema::hasColumn('services', 'price_cents')) {
-            $payload['price_cents'] = $priceInCents;
-        }
-
-        $service->update($payload);
-
-        return redirect()->route('services.index')->with('success', "Service \"{$service->name}\" updated successfully.");
+        return redirect()
+            ->route('services.index')
+            ->with('success', "Service '{$service->name}' updated.");
     }
 
-    /**
-     * Remove the specified service from the catalog.
-     */
-    public function destroy(Service $service)
+    public function destroy(Service $service): RedirectResponse
     {
-        $user = Auth::user();
-        if (!$user || !$user->isAdmin()) {
-            abort(403, 'Only administrators can delete catalog services.');
-        }
+        abort_unless(auth()->user()->canManageServices(), 403, 'Only Managers and Admins can delete services.');
 
-        // Check if service is referenced in existing customer orders
-        $itemsCount = JobItem::where('service_id', $service->id)->count();
+        $name = $service->name;
+        $this->serviceService->deleteService($service);
 
-        if ($itemsCount > 0) {
-            if (Schema::hasColumn('services', 'is_active')) {
-                $service->update(['is_active' => false]);
-                return redirect()->route('services.index')->with('success', "Service \"{$service->name}\" was deactivated because it is linked to {$itemsCount} historical order(s).");
-            }
-
-            return redirect()->route('services.index')->with('error', "Cannot delete \"{$service->name}\" because it is linked to {$itemsCount} existing laundry order(s). Historical orders require this record for receipt reprints.");
-        }
-
-        $serviceName = $service->name;
-        $service->delete();
-
-        return redirect()->route('services.index')->with('success', "Service \"{$serviceName}\" removed from the catalog.");
+        return redirect()
+            ->route('services.index')
+            ->with('success', "Service '{$name}' removed from catalog.");
     }
 }
-

@@ -10,17 +10,37 @@ class Customer extends Model
 {
     use HasFactory;
 
-    // Which columns are safe to save from forms
     protected $fillable = [
         'name',
         'phone',
+        'email',
+        'notes',
     ];
 
     /**
-     * Relationship: 1 Customer can have MANY laundry orders (1:N)
+     * Relationship: An order belongs to this customer.
      */
-    public function jobs(): HasMany
+    public function orders(): HasMany
     {
-        return $this->hasMany(Job::class);
+        return $this->hasMany(Job::class, 'customer_id')->latest();
+    }
+
+    /**
+     * Derived Accessor: Total orders count (computed live, never stored).
+     */
+    public function getTotalOrdersCountAttribute(): int
+    {
+        return $this->orders()->count();
+    }
+
+    /**
+     * Derived Accessor: Total spent in integer cents (computed live from line items, never stored).
+     */
+    public function getTotalSpentCentsAttribute(): int
+    {
+        return (int) $this->orders()
+            ->with('items')
+            ->get()
+            ->sum(fn ($order) => $order->total_cents ?? 0);
     }
 }

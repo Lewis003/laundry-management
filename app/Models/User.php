@@ -3,117 +3,151 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\Schema;
 
 class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
         'name',
         'email',
         'password',
         'role',
+        'is_admin',
+        'permissions',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
+        'is_admin' => 'boolean',
+        'permissions' => 'array',
+    ];
+
+    public function assignedJobs()
     {
-        return [
-            'email_verified_at' => 'datetime',
-            'password'          => 'hashed',
-        ];
+        return $this->hasMany(Job::class, 'assigned_to');
     }
 
-    /**
-     * Laundry jobs assigned to this staff member / wash bay operator.
-     */
-    public function assignedJobs(): HasMany
+    public function jobs()
     {
-        $foreignKey = 'user_id';
+        return $this->hasMany(Job::class, 'user_id');
+    }
 
-        if (Schema::hasTable('jobs')) {
-            if (Schema::hasColumn('jobs', 'operator_id')) {
-                $foreignKey = 'operator_id';
-            } elseif (Schema::hasColumn('jobs', 'assigned_to')) {
-                $foreignKey = 'assigned_to';
+    public function roleDefinition()
+    {
+        return $this->belongsTo(Role::class, 'role', 'name');
+    }
+
+    // Role Checkers
+    public function isAdmin(): bool
+    {
+        return $this->is_admin || $this->role === 'admin';
+    }
+
+    public function isCashier(): bool
+    {
+        return $this->role === 'cashier';
+    }
+
+    public function isManager(): bool
+    {
+        return $this->role === 'manager';
+    }
+
+    public function isOperator(): bool
+    {
+        return $this->role === 'operator';
+    }
+
+    public function isRider(): bool
+    {
+        return $this->role === 'rider';
+    }
+
+    public function hasPermission(string $permission): bool
+    {
+        if ($this->isAdmin()) {
+            return true;
+        }
+
+        $perms = $this->permissions ?? [];
+        if (is_array($perms) && array_key_exists($permission, $perms)) {
+            return (bool) $perms[$permission];
+        }
+
+        // Check assigned Role definition's primary actions
+        if (\Illuminate\Support\Facades\Schema::hasTable('roles')) {
+            $roleRecord = $this->roleDefinition;
+            if ($roleRecord && is_array($roleRecord->primary_actions) && in_array($permission, $roleRecord->primary_actions)) {
+                return true;
             }
         }
 
-        return $this->hasMany(Job::class, $foreignKey);
-    }
-
-    /**
-     * Laundry jobs created / checked in by this user.
-     */
-    public function jobs(): HasMany
-    {
-        $foreignKey = 'user_id';
-
-        if (Schema::hasTable('jobs') && Schema::hasColumn('jobs', 'created_by')) {
-            $foreignKey = 'created_by';
+        // Default role permissions if not explicitly configured in JSON
+        if ($this->isManager()) {
+            return in_array($permission, ['view_revenue', 'manage_expenses', 'manage_machines', 'price:override', 'rewash:approve', 'route:assign', 'report:export']);
         }
 
-        return $this->hasMany(Job::class, $foreignKey);
-    }
-
-    /**
-     * Payments collected / processed by this user.
-     */
-    public function payments(): HasMany
-    {
-        $foreignKey = 'user_id';
-
-        if (Schema::hasTable('payments') && Schema::hasColumn('payments', 'received_by')) {
-            $foreignKey = 'received_by';
+        if ($this->isCashier()) {
+            return in_array($permission, ['order:create', 'order:edit', 'payment:collect', 'tag:generate']);
         }
 
-        return $this->hasMany(Payment::class, $foreignKey);
+        if ($this->isOperator()) {
+            return in_array($permission, ['manage_machines', 'status:update', 'weight:log', 'machine:allocate']);
+        }
+
+        if ($this->isRider()) {
+            return in_array($permission, ['delivery:confirm', 'bag:audit']);
+        }
+
+        return false;
     }
 
-    /**
-     * Check if user is an administrator.
-     */
-    public function isAdmin(): bool
+    public function canViewRevenue(): bool
     {
-        return strtolower($this->role ?? '') === 'admin';
+        return $this->hasPermission('view_revenue');
     }
 
-    /**
-     * Check if user is a front desk cashier.
-     */
-    public function isCashier(): bool
+    public function canManageExpenses(): bool
     {
-        return strtolower($this->role ?? '') === 'cashier';
+        return $this->hasPermission('manage_expenses');
     }
 
-    /**
-     * Check if user is a wash bay operator.
-     */
-    public function isOperator(): bool
+    public function canManageMachines(): bool
     {
-        return strtolower($this->role ?? '') === 'operator';
+        return $this->hasPermission('manage_machines') || $this->isOperator();
+    }
+
+    public function canDeleteOrders(): bool
+    {
+        return $this->hasPermission('delete_orders');
+    }
+
+    public function canCreateIntake(): bool
+    {
+        return !$this->isOperator() && !$this->isRider();
+    }
+
+    public function canManageStaff(): bool
+    {
+        return $this->isAdmin() || $this->isManager();
+    }
+
+    public function canManageServices(): bool
+    {
+        return $this->isAdmin() || $this->isManager();
+    }
+
+    public function canManageCustomers(): bool
+    {
+        return !$this->isOperator() && !$this->isRider();
     }
 }
