@@ -16,6 +16,8 @@ class ServiceController extends Controller
 
     public function index(Request $request): View
     {
+        abort_if(auth()->user()->isOperator(), 403, 'Laundry operators cannot access the pricing catalog.');
+
         $filters = $request->only(['search', 'category', 'status']);
         $services = $this->serviceService->getFilteredServices($filters, 10);
 

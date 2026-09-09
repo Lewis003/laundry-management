@@ -52,6 +52,8 @@ class CustomerController extends Controller
 
     public function show(Customer $customer): View
     {
+        abort_unless(auth()->user()->canManageCustomers(), 403, 'Laundry operators cannot view customer profiles.');
+
         $customer->load(['orders.payments', 'orders.items.service']);
 
         return view('customers.show', compact('customer'));

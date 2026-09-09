@@ -14,7 +14,7 @@ class ShopSettingController extends Controller
      */
     public function edit(): View
     {
-        abort_unless(auth()->user()->isAdmin() || auth()->user()->isManager(), 403, 'Only Administrators and Managers can modify shop settings.');
+        abort_unless(auth()->user()->isAdmin(), 403, 'Only Administrators / Owners can modify shop settings.');
 
         $setting = ShopSetting::current();
 
@@ -26,7 +26,7 @@ class ShopSettingController extends Controller
      */
     public function update(Request $request): RedirectResponse
     {
-        abort_unless(auth()->user()->isAdmin() || auth()->user()->isManager(), 403, 'Only Administrators and Managers can modify shop settings.');
+        abort_unless(auth()->user()->isAdmin(), 403, 'Only Administrators / Owners can modify shop settings.');
 
         $validated = $request->validate([
             'shop_name'             => ['required', 'string', 'max:150'],

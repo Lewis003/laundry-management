@@ -93,6 +93,9 @@ class MachineController extends Controller
      */
     public function assign(Request $request, Machine $machine): RedirectResponse
     {
+        abort_if(auth()->user()->isCashier(), 403, 'Front desk cashiers cannot allocate or change machine statuses.');
+        abort_unless(auth()->user()->canOperateMachines(), 403, 'Unauthorized to allocate equipment.');
+
         $validated = $request->validate([
             'job_id' => ['required', 'exists:jobs,id'],
         ]);
@@ -111,6 +114,9 @@ class MachineController extends Controller
      */
     public function release(Machine $machine): RedirectResponse
     {
+        abort_if(auth()->user()->isCashier(), 403, 'Front desk cashiers cannot allocate or change machine statuses.');
+        abort_unless(auth()->user()->canOperateMachines(), 403, 'Unauthorized to release equipment.');
+
         $this->machineService->releaseMachine($machine);
         return redirect()->route('machines.index')->with('success', "Equipment '{$machine->name}' marked available.");
     }

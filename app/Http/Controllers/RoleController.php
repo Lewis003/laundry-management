@@ -15,7 +15,7 @@ class RoleController extends Controller
      */
     public function index(): View
     {
-        abort_unless(auth()->user()->isAdmin() || auth()->user()->isManager(), 403, 'Only Administrators and Managers can access Role Management.');
+        abort_unless(auth()->user()->isAdmin(), 403, 'Only Administrators / Owners can access Role Management.');
 
         $roles = Role::withCount('users')->orderBy('id', 'asc')->get();
         if ($roles->isEmpty()) {

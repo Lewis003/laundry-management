@@ -70,8 +70,15 @@ class JobController extends Controller
     /**
      * Export filtered orders directly to CSV format.
      */
+    public function export(Request $request): StreamedResponse
+    {
+        return $this->exportCsv($request);
+    }
+
     public function exportCsv(Request $request): StreamedResponse
     {
+        abort_if(Auth::user()?->isOperator(), 403, 'Laundry operators cannot export financial order data.');
+
         $query = Job::with(['customer', 'machine', 'items.service', 'payments'])->latest();
 
         if ($request->filled('status') && $request->status !== 'all') {
@@ -177,6 +184,8 @@ class JobController extends Controller
         }
 
         if ($validated['action'] === 'export_selected') {
+            abort_if(Auth::user()?->isOperator(), 403, 'Laundry operators cannot export financial order data.');
+
             $jobs = Job::with(['customer', 'machine'])->whereIn('id', $jobIds)->get();
             $filename = 'selected_orders_' . date('Y-m-d_His') . '.csv';
 
@@ -292,6 +301,11 @@ class JobController extends Controller
      */
     public function assignMachine(Request $request, Job $job, AssignMachineAction $assignMachineAction)
     {
+        $user = Auth::user();
+        if ($user && ($user->isCashier() || !$user->canOperateMachines())) {
+            abort(403, 'Front desk cashiers cannot allocate machinery.');
+        }
+
         $validated = $request->validate([
             'machine_id' => ['required', 'exists:machines,id'],
         ]);
@@ -400,6 +414,11 @@ class JobController extends Controller
      */
     public function receipt(Job $job)
     {
+        $user = Auth::user();
+        if ($user && ($user->role === 'operator' || (method_exists($user, 'isOperator') && $user->isOperator()))) {
+            abort(403, 'Laundry operators cannot view customer financial receipts.');
+        }
+
         $job->load(['customer', 'items.service', 'payments', 'machine']);
 
         return view('jobs.receipt', compact('job'));

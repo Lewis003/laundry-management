@@ -125,8 +125,8 @@
                 </a>
                 @endif
 
-                <!-- 10. Settings & Governance Hierarchy (Admin/Manager) -->
-                @if(auth()->user()->isAdmin() || auth()->user()->isManager())
+                <!-- 10. Settings & Governance Hierarchy (Admin Only) -->
+                @if(auth()->user()->isAdmin())
                 <div x-data="{ openSettings: {{ request()->routeIs('settings.*') || request()->routeIs('staff.*') || request()->routeIs('roles.*') ? 'true' : 'false' }} }" class="space-y-1">
                     <button @click="openSettings = !openSettings" type="button"
                             class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition {{ request()->routeIs('settings.*') || request()->routeIs('staff.*') || request()->routeIs('roles.*') ? 'bg-slate-800 text-white font-bold' : 'text-slate-400 hover:bg-slate-800/70 hover:text-slate-200' }}">

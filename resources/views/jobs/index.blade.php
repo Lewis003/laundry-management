@@ -20,7 +20,8 @@
             </div>
 
             <div class="flex items-center space-x-3">
-                <!-- Export to CSV Button -->
+                <!-- Export to CSV Button (Non-operators) -->
+                @if(!Auth::user()?->isOperator())
                 <a href="{{ route('jobs.export', request()->query()) }}"
                    class="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 shadow-2xs transition inline-flex items-center space-x-2">
                     <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -28,9 +29,10 @@
                     </svg>
                     <span>Export CSV</span>
                 </a>
+                @endif
 
-                <!-- Place New Order Button (Cashier & Admin Only) -->
-                @if(Auth::user()?->isAdmin() || Auth::user()?->isCashier())
+                <!-- Place New Order Button (Staff with Intake Authority) -->
+                @if(Auth::user()?->canCreateIntake())
                     <a href="{{ route('jobs.create') }}" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition inline-flex items-center space-x-1.5">
                         <span class="text-base font-black leading-none">+</span>
                         <span>Place New Order</span>
@@ -169,9 +171,9 @@
                                        class="rounded text-blue-600 focus:ring-0 border-slate-300">
                             </th>
                             <th class="py-3 px-4">Ticket #</th>
-                            <th class="py-3 px-4">Customer</th>
+                            <th class="py-3 px-4">{{ auth()->user()->isOperator() ? 'Job Reference' : 'Customer' }}</th>
                             <th class="py-3 px-4">Equipment</th>
-                            <th class="py-3 px-4">Financial Ledger</th>
+                            <th class="py-3 px-4">{{ auth()->user()->isOperator() ? 'Garment Items' : 'Financial Ledger' }}</th>
                             <th class="py-3 px-4">Status</th>
                             <th class="py-3 px-4 text-right">Actions</th>
                         </tr>
@@ -199,8 +201,13 @@
                                     <div class="text-[10px] text-slate-400">{{ $job->created_at?->format('d M, h:i A') }}</div>
                                 </td>
                                 <td class="py-3.5 px-4">
-                                    <div class="font-bold text-slate-900">{{ $job->customer?->name ?? 'Walk-in Client' }}</div>
-                                    <div class="text-[10px] text-slate-400 font-mono">{{ $job->customer?->phone ?? '—' }}</div>
+                                    @if(!auth()->user()->isOperator())
+                                        <div class="font-bold text-slate-900">{{ $job->customer?->name ?? 'Walk-in Client' }}</div>
+                                        <div class="text-[10px] text-slate-400 font-mono">{{ $job->customer?->phone ?? '—' }}</div>
+                                    @else
+                                        <div class="font-bold text-slate-800">Garment Batch</div>
+                                        <div class="text-[10px] text-slate-400 font-mono">#{{ $job->job_number }}</div>
+                                    @endif
                                 </td>
                                 <td class="py-3.5 px-4">
                                     @if($job->machine)
@@ -212,10 +219,15 @@
                                     @endif
                                 </td>
                                 <td class="py-3.5 px-4">
-                                    <div class="font-mono font-bold text-slate-900">KSh {{ number_format($total, 2) }}</div>
-                                    <div class="text-[10px] font-semibold {{ $isPaid ? 'text-emerald-600' : 'text-amber-600' }}">
-                                        {{ $isPaid ? '✓ M-Pesa Cleared' : 'Due: KSh ' . number_format($balance, 2) }}
-                                    </div>
+                                    @if(!auth()->user()->isOperator())
+                                        <div class="font-mono font-bold text-slate-900">KSh {{ number_format($total, 2) }}</div>
+                                        <div class="text-[10px] font-semibold {{ $isPaid ? 'text-emerald-600' : 'text-amber-600' }}">
+                                            {{ $isPaid ? '✓ M-Pesa Cleared' : 'Due: KSh ' . number_format($balance, 2) }}
+                                        </div>
+                                    @else
+                                        <div class="font-bold text-slate-900">{{ $job->items->sum('quantity') }} Garments</div>
+                                        <div class="text-[10px] text-slate-500">{{ $job->items->first()?->service?->name ?? 'Wash & Fold' }}</div>
+                                    @endif
                                 </td>
                                 <td class="py-3.5 px-4">
                                     @if($status === 'COLLECTED')

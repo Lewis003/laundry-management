@@ -16,16 +16,20 @@
     </x-nav-link>
 
     <!-- Expenses Tracker -->
+    @if(auth()->user()->canManageExpenses())
     <x-nav-link :href="route('expenses.index')" :active="request()->routeIs('expenses.*')">
         {{ __('Expenses') }}
     </x-nav-link>
+    @endif
 
     <!-- P&L Reports -->
+    @if(auth()->user()->canViewRevenue())
     <x-nav-link :href="route('reports.index')" :active="request()->routeIs('reports.*')">
         {{ __('Reports & P&L') }}
     </x-nav-link>
+    @endif
 
-        <!-- Staff & Roles Permissions Link (Admins Only) -->
+    <!-- Staff & Roles Permissions Link (Admins Only) -->
     @if(auth()->user()->isAdmin())
     <x-nav-link :href="route('staff.index')" :active="request()->routeIs('staff.*')">
         {{ __('Staff & Roles') }}
@@ -33,14 +37,14 @@
     @endif
 
     <!-- Services Catalog -->
-    @if(Route::has('services.index'))
+    @if(Route::has('services.index') && !auth()->user()->isOperator())
     <x-nav-link :href="route('services.index')" :active="request()->routeIs('services.*')">
         {{ __('Services') }}
     </x-nav-link>
     @endif
 
-    <!-- Settings (Admin / Manager) -->
-    @if(auth()->user()->isAdmin() || auth()->user()->isManager())
+    <!-- Settings (Admin Only) -->
+    @if(auth()->user()->isAdmin())
     <x-nav-link :href="route('settings.edit')" :active="request()->routeIs('settings.*') || request()->routeIs('roles.*')">
         {{ __('Settings') }}
     </x-nav-link>

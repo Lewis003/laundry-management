@@ -123,7 +123,22 @@ class User extends Authenticatable
 
     public function canManageMachines(): bool
     {
-        return $this->hasPermission('manage_machines') || $this->isOperator();
+        return $this->isAdmin() || $this->isManager();
+    }
+
+    public function canOperateMachines(): bool
+    {
+        return $this->isAdmin() || $this->isManager() || $this->isOperator();
+    }
+
+    public function canOverridePrice(): bool
+    {
+        return $this->isAdmin() || $this->isManager();
+    }
+
+    public function canApproveRewash(): bool
+    {
+        return $this->isAdmin() || $this->isManager();
     }
 
     public function canDeleteOrders(): bool
@@ -138,7 +153,7 @@ class User extends Authenticatable
 
     public function canManageStaff(): bool
     {
-        return $this->isAdmin() || $this->isManager();
+        return $this->isAdmin();
     }
 
     public function canManageServices(): bool

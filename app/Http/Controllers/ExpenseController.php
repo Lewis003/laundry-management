@@ -69,6 +69,8 @@ class ExpenseController extends Controller
 
     public function store(Request $request)
     {
+        abort_unless(auth()->user()->canManageExpenses(), 403, 'Unauthorized. Access to expenses is restricted.');
+
         $validated = $request->validate([
             'title'          => 'required|string|max:255',
             'category'       => 'required|in:water,electricity,salaries,supplies,maintenance,rent,other,utilities',
@@ -95,12 +97,16 @@ class ExpenseController extends Controller
 
     public function destroy(Expense $expense)
     {
+        abort_unless(auth()->user()->canManageExpenses(), 403, 'Unauthorized. Access to expenses is restricted.');
+
         $expense->delete();
         return redirect()->route('expenses.index')->with('success', 'Expense entry removed.');
     }
 
     public function bulkAction(Request $request)
     {
+        abort_unless(auth()->user()->canManageExpenses(), 403, 'Unauthorized. Access to expenses is restricted.');
+
         $action = $request->input('bulk_action');
         $ids = $request->input('selected_ids', []);
 
@@ -118,6 +124,8 @@ class ExpenseController extends Controller
 
     public function export(Request $request): StreamedResponse
     {
+        abort_unless(auth()->user()->canManageExpenses(), 403, 'Unauthorized. Access to expenses is restricted.');
+
         $fileName = 'safishwa_expenses_' . date('Y_m_d_His') . '.csv';
 
         return response()->streamDownload(function () use ($request) {

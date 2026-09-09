@@ -12,7 +12,7 @@ class StaffController extends Controller
 {
     public function index(Request $request): View
     {
-        abort_unless(auth()->user()->canManageStaff(), 403, 'Unauthorized. Staff management is restricted to Administrators and Managers.');
+        abort_unless(auth()->user()->isAdmin(), 403, 'Only Administrators / Owners can manage staff accounts.');
 
         $roles = Role::withCount('users')->orderBy('id', 'asc')->get();
         if ($roles->isEmpty()) {
@@ -41,7 +41,7 @@ class StaffController extends Controller
 
     public function permissions(): View
     {
-        abort_unless(auth()->user()->canManageStaff(), 403, 'Unauthorized. Staff permissions management is restricted to Administrators and Managers.');
+        abort_unless(auth()->user()->isAdmin(), 403, 'Only Administrators / Owners can manage staff permissions.');
 
         $roles = Role::withCount('users')->orderBy('id', 'asc')->get();
         $staff = User::with('roleDefinition')->orderBy('name', 'asc')->get();
@@ -52,7 +52,7 @@ class StaffController extends Controller
 
     public function store(Request $request)
     {
-        abort_unless(auth()->user()->canManageStaff(), 403, 'Unauthorized. Staff management is restricted to Administrators and Managers.');
+        abort_unless(auth()->user()->isAdmin(), 403, 'Only Administrators / Owners can create staff accounts.');
 
         $validRoles = Role::pluck('name')->toArray();
         if (empty($validRoles)) {

@@ -17,6 +17,7 @@
                     </span>
                 </div>
             </div>
+            @if(!auth()->user()->isOperator())
             <div class="flex items-center space-x-2">
                 <a href="{{ route('jobs.receipt', $job) }}" target="_blank"
                    class="inline-flex items-center px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 shadow-sm transition">
@@ -26,6 +27,7 @@
                     Print 80mm Receipt
                 </a>
             </div>
+            @endif
         </div>
 
         @if(session('success'))
@@ -94,6 +96,7 @@
                                 <div class="text-xs font-black text-slate-800">Assign Machine & Start Cycle</div>
                                 <p class="text-[11px] text-slate-500 mt-0.5">Select an available commercial washer or dryer to lock and start washing.</p>
                             </div>
+                            @if(auth()->user()->canOperateMachines())
                             <form action="{{ route('jobs.assign-machine', $job) }}" method="POST" class="space-y-3">
                                 @csrf
                                 <select name="machine_id" required class="w-full rounded-xl border-slate-200 text-xs font-bold bg-white focus:border-blue-500 focus:ring-blue-500">
@@ -114,6 +117,11 @@
                                     <span>Lock Equipment & Start Wash</span>
                                 </button>
                             </form>
+                            @else
+                            <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 font-semibold flex items-center gap-2">
+                                <span>⚠️ Machine assignment is executed by wash bay operators.</span>
+                            </div>
+                            @endif
                         </div>
                     @elseif($statusVal === 'in_progress')
                         <!-- Step 2: Wash In Progress -->
@@ -217,12 +225,22 @@
                                     </div>
                                     <div>
                                         <div class="font-bold text-slate-900">{{ $item->service?->name ?? 'Laundry Service' }}</div>
-                                        <div class="text-[11px] text-slate-400">@ KSh {{ number_format($item->unit_price, 2) }} each</div>
+                                        @if(!auth()->user()->isOperator())
+                                            <div class="text-[11px] text-slate-400">@ KSh {{ number_format($item->unit_price, 2) }} each</div>
+                                        @else
+                                            <div class="text-[11px] text-slate-400">Wash Bay Processing Item</div>
+                                        @endif
                                     </div>
                                 </div>
+                                @if(!auth()->user()->isOperator())
                                 <div class="font-mono font-bold text-slate-900">
                                     KSh {{ number_format($item->subtotal, 2) }}
                                 </div>
+                                @else
+                                <div class="text-xs font-bold text-slate-400">
+                                    Qty: {{ $item->quantity }}
+                                </div>
+                                @endif
                             </div>
                         @endforeach
                     </div>
@@ -234,7 +252,8 @@
                     @endif
                 </div>
 
-                <!-- CUSTOMER CARD -->
+                <!-- CUSTOMER CARD (Masked for Laundry Operators) -->
+                @if(!auth()->user()->isOperator())
                 <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
                     <h3 class="text-xs font-black text-slate-900 uppercase tracking-wider">Customer Details</h3>
                     <div class="flex items-center justify-between">
@@ -249,12 +268,14 @@
                         </a>
                     </div>
                 </div>
+                @endif
 
             </div>
 
-            <!-- RIGHT COLUMN: FINANCIAL LEDGER & M-PESA TERMINAL -->
+            <!-- RIGHT COLUMN: FINANCIAL LEDGER & M-PESA TERMINAL (OR OPERATOR WORKBENCH) -->
             <div class="lg:col-span-6 space-y-6">
 
+                @if(!auth()->user()->isOperator())
                 <!-- FINANCIAL SUMMARY CARD -->
                 <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
                     <div class="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -333,7 +354,7 @@
                 @endif
 
                 <!-- DEDICATED M-PESA RECORDING TERMINAL -->
-                @if(!auth()->user()?->isOperator() && $job->balance_due > 0)
+                @if($job->balance_due > 0)
                     <div x-data="{ amount: {{ $job->balance_due }} }"
                          class="bg-white p-6 rounded-3xl border-2 border-emerald-500 shadow-sm space-y-5">
 
@@ -390,6 +411,48 @@
                         <h4 class="text-sm font-black text-emerald-950">M-Pesa Settled in Full</h4>
                         <p class="text-xs text-emerald-700">No outstanding balance due. Ready for collection.</p>
                     </div>
+                @endif
+                @else
+                <!-- OPERATIONAL BAY WORKBENCH FOR LAUNDRY OPERATORS -->
+                <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                        <div>
+                            <span class="text-xs font-black uppercase tracking-wider text-slate-400">Wash Bay Processing</span>
+                            <div class="text-lg font-black text-slate-900 mt-0.5">Order #{{ $job->job_number }}</div>
+                        </div>
+                        <span class="text-xs font-bold px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 uppercase">
+                            {{ strtoupper($statusVal) }}
+                        </span>
+                    </div>
+
+                    <div class="space-y-3 text-xs">
+                        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
+                            <div class="font-bold text-slate-800">Equipment Allocation:</div>
+                            <div class="text-slate-700 font-mono text-sm font-black">
+                                {{ $job->machine ? '⚡ ' . $job->machine->name . ' (' . ($job->machine->capacity_kg ?? 18) . 'kg)' : '⚠️ Not yet allocated' }}
+                            </div>
+                        </div>
+
+                        @if($job->rack_location)
+                        <div class="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-1">
+                            <div class="font-bold text-emerald-900">Shelved Rack Location:</div>
+                            <div class="font-mono font-black text-emerald-700 text-sm">📍 {{ $job->rack_location }}</div>
+                        </div>
+                        @endif
+
+                        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
+                            <div class="font-bold text-slate-800">Total Garment Items:</div>
+                            <div class="text-slate-900 font-black text-lg">{{ $job->items->sum('quantity') }} items</div>
+                        </div>
+
+                        @if($job->notes)
+                        <div class="p-4 bg-amber-50/80 rounded-2xl border border-amber-200 space-y-1">
+                            <div class="font-bold text-amber-900">Special Handling Instructions:</div>
+                            <div class="text-amber-800 text-xs">{{ $job->notes }}</div>
+                        </div>
+                        @endif
+                    </div>
+                </div>
                 @endif
 
             </div>
